@@ -1,0 +1,38 @@
+Source: python-croniter
+Section: python
+Priority: optional
+Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
+Uploaders:
+ Thomas Goirand <zigo@debian.org>,
+Build-Depends:
+ debhelper-compat (= 11),
+ dh-python,
+ openstack-pkg-tools,
+ python3-all,
+ python3-setuptools,
+Build-Depends-Indep:
+ python3-dateutil,
+ python3-mock,
+ python3-nose,
+ python3-pytest,
+ python3-tz,
+ python3-tzlocal,
+Standards-Version: 4.5.0
+Vcs-Browser: https://salsa.debian.org/openstack-team/python/python-croniter
+Vcs-Git: https://salsa.debian.org/openstack-team/python/python-croniter.git
+Homepage: https://github.com/kiorky/croniter
+
+Package: python3-croniter
+Architecture: all
+Depends:
+ python3-dateutil,
+ python3-tz,
+ python3-tzlocal,
+ ${misc:Depends},
+ ${python3:Depends},
+Description: provides iteration for datetime object with cron like format - Python 3.x
+ Croniter is a Python module to provide iteration for datetime object. Given a
+ cron tab text entry as input, it Croniter will output all the dates matching
+ the definition.
+ .
+ This package contains the Python 3.x module.
