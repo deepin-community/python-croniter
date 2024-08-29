@@ -1,3 +1,78 @@
+python-croniter (2.0.1-3) unstable; urgency=medium
+
+  * Drop obsolete python3-mock build dependency (Closes: #1066142).
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 18 Apr 2024 09:33:30 +0200
+
+python-croniter (2.0.1-2) unstable; urgency=medium
+
+  * Uploading to unstable.
+
+ -- Thomas Goirand <zigo@debian.org>  Wed, 03 Apr 2024 16:09:30 +0200
+
+python-croniter (2.0.1-1) experimental; urgency=medium
+
+  * New upstream release.
+
+ -- Thomas Goirand <zigo@debian.org>  Fri, 23 Feb 2024 13:31:21 +0100
+
+python-croniter (1.3.15-2) unstable; urgency=medium
+
+  * Uploading to unstable.
+  * Add fix-tz.patch.
+
+ -- Thomas Goirand <zigo@debian.org>  Wed, 04 Oct 2023 21:25:55 +0200
+
+python-croniter (1.3.15-1) experimental; urgency=medium
+
+  * New upstream release.
+  * Cleans better.
+
+ -- Thomas Goirand <zigo@debian.org>  Tue, 29 Aug 2023 13:50:32 +0200
+
+python-croniter (1.3.5-3) unstable; urgency=medium
+
+  * Remove python3-nose from build-depends (Closes: #1018474).
+
+ -- Thomas Goirand <zigo@debian.org>  Fri, 04 Nov 2022 15:10:02 +0100
+
+python-croniter (1.3.5-2) unstable; urgency=medium
+
+  * Uploading to unstable.
+
+ -- Thomas Goirand <zigo@debian.org>  Sat, 24 Sep 2022 16:52:11 +0200
+
+python-croniter (1.3.5-1) experimental; urgency=medium
+
+  * New upstream release.
+  * Add autopkgtest.
+
+ -- Thomas Goirand <zigo@debian.org>  Tue, 30 Aug 2022 13:34:41 +0200
+
+python-croniter (1.3.1-2) unstable; urgency=medium
+
+  * Uploading to unstable.
+
+ -- Thomas Goirand <zigo@debian.org>  Wed, 23 Mar 2022 16:20:42 +0100
+
+python-croniter (1.3.1-1) experimental; urgency=medium
+
+  * New upstream release.
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 21 Feb 2022 09:18:09 +0100
+
+python-croniter (1.2.0-1) experimental; urgency=medium
+
+  * New upstream release.
+
+ -- Thomas Goirand <zigo@debian.org>  Tue, 15 Feb 2022 16:55:04 +0100
+
+python-croniter (1.0.15-3) unstable; urgency=medium
+
+  * Remove python3-tzlocal from depends (Closes: #979494).
+
+ -- Thomas Goirand <zigo@debian.org>  Tue, 28 Dec 2021 18:07:11 +0100
+
 python-croniter (1.0.15-2) unstable; urgency=medium
 
   * Uploading to unstable.

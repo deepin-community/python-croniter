@@ -12,8 +12,6 @@ Build-Depends:
  python3-setuptools,
 Build-Depends-Indep:
  python3-dateutil,
- python3-mock,
- python3-nose,
  python3-pytest,
  python3-tz,
  python3-tzlocal,
@@ -27,7 +25,6 @@ Architecture: all
 Depends:
  python3-dateutil,
  python3-tz,
- python3-tzlocal,
  ${misc:Depends},
  ${python3:Depends},
 Description: provides iteration for datetime object with cron like format - Python 3.x

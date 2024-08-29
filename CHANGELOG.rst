@@ -1,6 +1,139 @@
 Changelog
 ==============
 
+2.0.1 (2023-10-11)
+------------------
+
+- Fix release issue [kiorky]
+
+
+2.0.0 (2023-10-10)
+------------------
+
+- Add Python 3.12 support [rafsaf]
+- Make major release instructions [kiorky]
+
+
+1.4.1 (2023-06-15)
+------------------
+
+- Make a retrocompatible version of 1.4.0 change about supporting VIXIECRON bug. (fix #47)
+  [kiorky]
+
+
+1.4.0 (2023-06-15)
+------------------
+
+- Added "implement_cron_bug" flag to make the cron parser compatible with a bug in Vixie/ISC Cron
+  [kiorky, David White <dwhite2@cisco.com>]
+  *WARNING*: EXPAND METHOD CHANGES RETURN VALUE
+
+
+1.3.15 (2023-05-25)
+-------------------
+
+- Fix hashed expressions omitting some entries
+  [@waltervos/Walter Vos <walter.vos@ns.nl>]
+- Enhance .match() precision for 6 position expressions
+  [@szpol/szymon <szymon.polinkiewicz@gmail.com>]
+
+1.3.14 (2023-04-12)
+-------------------
+
+- Lint
+
+
+1.3.13 (2023-04-12)
+-------------------
+
+- Add check for range begin/end
+
+
+
+1.3.12 (2023-04-12)
+-------------------
+
+- restore py2 compat
+
+
+1.3.11 (2023-04-12)
+-------------------
+
+-  Do not expose `i` into global namespace
+
+
+1.3.10 (2023-04-07)
+-------------------
+
+- Fix DOW hash parsing [kiorky]
+- better error handling on py3 [kiorky]
+
+1.3.8 (2022-11-22)
+------------------
+
+- Add Python 3.11 support and move docs files to main folder [rafsaf]
+
+
+1.3.7 (2022-09-06)
+------------------
+
+- fix tests
+- Fix croniter_range infinite loop  [Shachar Snapiri <ssnapiri@paloaltonetworks.com>]
+
+
+1.3.5 (2022-05-14)
+------------------
+
+- Add Python 3.10 support [eelkevdbos]
+
+
+1.3.4 (2022-02-18)
+------------------
+
+- Really fix compat for tests under py27
+  [kiorky]
+
+
+1.3.3 (2022-02-18)
+------------------
+
+- Fix compat for tests under py27
+  [kiorky]
+
+
+1.3.2 (2022-02-18)
+------------------
+
+- Fix #12: regressions with set_current
+  [kiorky, agateblue]
+
+
+1.3.1 (2022-02-15)
+------------------
+
+- Restore compat with python2
+  [kiorky]
+
+
+1.3.0 (2022-02-15)
+------------------
+
+- Add a way to make next() easier to use. This fixes #11
+  [kiorky]
+
+
+1.2.0 (2022-01-14)
+------------------
+
+- Enforce validation for day=1. Before this release we used to support day=0 and it was silently glided to day=1 to support having both day in day in 4th field when it came to have 6fields cron forms (second repeat). It will now raises a CroniterBadDateError. See https://github.com/kiorky/croniter/issues/6
+  [kiorky]
+
+1.1.0 (2021-12-03)
+------------------
+
+- Enforce validation for month=1. Before this release we used to support month=0 and it was silently glided to month=1 to support having both day in month in 4th field when it came to have 6fields cron forms (second repeat). It will now raises a CroniterBadDateError. See https://github.com/kiorky/croniter/issues/6
+  [kiorky]
+
 1.0.15 (2021-06-25)
 -------------------
 
@@ -250,7 +383,7 @@ Changelog
 
 0.3.17 (2017-05-22)
 -------------------
-- DOW occurence sharp style support.
+- DOW occurrence sharp style support.
   [kiorky, Kengo Seki <sekikn@apache.org>]
 
 
