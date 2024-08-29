@@ -2,3 +2,8 @@ Restrictions: superficial
 Depends:
  python3-croniter,
 Test-Command: cd "$AUTOPKGTEST_TMP" ; python3 -c "import croniter ; print(croniter)"
+
+Tests: unittests
+Depends:
+ @builddeps@,
+Restrictions: allow-stderr needs-root

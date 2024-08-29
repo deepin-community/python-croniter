@@ -3,6 +3,8 @@
 
 from __future__ import absolute_import, print_function, division
 
+import traceback as _traceback
+import copy
 import math
 import re
 import sys
@@ -15,20 +17,51 @@ import calendar
 import binascii
 import random
 
+# as pytz is optional in thirdparty libs but we need it for good support under
+# python2, just test that it's well installed
+import pytz  # noqa
+
 try:
     from collections import OrderedDict
 except ImportError:
-    OrderedDict = dict  # py26 degraded mode, expanders order wont be immutable
+    OrderedDict = dict  # py26 degraded mode, expanders order will not be immutable
 
 
+M_ALPHAS = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+            'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12}
+DOW_ALPHAS = {'sun': 0, 'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6}
+ALPHAS = {}
+for i in M_ALPHAS, DOW_ALPHAS:
+    ALPHAS.update(i)
+del i
 step_search_re = re.compile(r'^([^-]+)-([^-/]+)(/(\d+))?$')
 only_int_re = re.compile(r'^\d+$')
+
+WEEKDAYS = '|'.join(DOW_ALPHAS.keys())
+MONTHS = '|'.join(M_ALPHAS.keys())
 star_or_int_re = re.compile(r'^(\d+|\*)$')
-special_weekday_re = re.compile(r'^(\w+)#(\d+)|l(\d+)$')
+special_dow_re = re.compile(
+    (r'^(?P<pre>((?P<he>(({WEEKDAYS})(-({WEEKDAYS}))?)').format(WEEKDAYS=WEEKDAYS) +
+    (r'|(({MONTHS})(-({MONTHS}))?)|\w+)#)|l)(?P<last>\d+)$').format(MONTHS=MONTHS)
+)
+re_star = re.compile('[*]')
 hash_expression_re = re.compile(
     r'^(?P<hash_type>h|r)(\((?P<range_begin>\d+)-(?P<range_end>\d+)\))?(\/(?P<divisor>\d+))?$'
 )
 VALID_LEN_EXPRESSION = [5, 6]
+EXPRESSIONS = {}
+
+
+def timedelta_to_seconds(td):
+    return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) \
+        / 10**6
+
+
+def datetime_to_timestamp(d):
+    if d.tzinfo is not None:
+        d = d.replace(tzinfo=None) - d.utcoffset()
+
+    return timedelta_to_seconds(d - datetime.datetime(1970, 1, 1))
 
 
 def _get_caller_globals_and_locals():
@@ -94,10 +127,9 @@ class croniter(object):
         {},  # 1: hour
         {"l": "l"},  # 2: dom
         # 3: mon
-        {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-         'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12},
+        copy.deepcopy(M_ALPHAS),
         # 4: dow
-        {'sun': 0, 'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6},
+        copy.deepcopy(DOW_ALPHAS),
         # command/user
         {}
     )
@@ -125,9 +157,10 @@ class croniter(object):
 
     def __init__(self, expr_format, start_time=None, ret_type=float,
                  day_or=True, max_years_between_matches=None, is_prev=False,
-                 hash_id=None):
+                 hash_id=None, implement_cron_bug=False):
         self._ret_type = ret_type
         self._day_or = day_or
+        self._implement_cron_bug = implement_cron_bug
 
         if hash_id:
             if not isinstance(hash_id, (bytes, str)):
@@ -149,9 +182,10 @@ class croniter(object):
         self.start_time = None
         self.dst_start_time = None
         self.cur = None
-        self.set_current(start_time)
+        self.set_current(start_time, force=False)
 
         self.expanded, self.nth_weekday_of_month = self.expand(expr_format, hash_id=hash_id)
+        self.expressions = EXPRESSIONS[(expr_format, hash_id)]
         self._is_prev = is_prev
 
     @classmethod
@@ -163,8 +197,7 @@ class croniter(object):
                 "[{0}] is not acceptable".format(" ".join(expressions)))
 
     def get_next(self, ret_type=None, start_time=None):
-        if start_time is not None:
-            self.set_current(start_time)
+        self.set_current(start_time, force=True)
         return self._get_next(ret_type or self._ret_type, is_prev=False)
 
     def get_prev(self, ret_type=None):
@@ -176,14 +209,15 @@ class croniter(object):
             return self._timestamp_to_datetime(self.cur)
         return self.cur
 
-    def set_current(self, start_time):
-        if isinstance(start_time, datetime.datetime):
-            self.tzinfo = start_time.tzinfo
-            start_time = self._datetime_to_timestamp(start_time)
+    def set_current(self, start_time, force=True):
+        if (force or (self.cur is None)) and start_time is not None:
+            if isinstance(start_time, datetime.datetime):
+                self.tzinfo = start_time.tzinfo
+                start_time = self._datetime_to_timestamp(start_time)
 
-        self.start_time = start_time
-        self.dst_start_time = start_time
-        self.cur = start_time
+            self.start_time = start_time
+            self.dst_start_time = start_time
+            self.cur = start_time
         return self.cur
 
     @classmethod
@@ -191,16 +225,13 @@ class croniter(object):
         """
         Converts a `datetime` object `d` into a UNIX timestamp.
         """
-        if d.tzinfo is not None:
-            d = d.replace(tzinfo=None) - d.utcoffset()
-
-        return cls._timedelta_to_seconds(d - datetime.datetime(1970, 1, 1))
+        return datetime_to_timestamp(d)
 
     def _timestamp_to_datetime(self, timestamp):
         """
         Converts a UNIX timestamp `timestamp` into a `datetime` object.
         """
-        result = datetime.datetime.utcfromtimestamp(timestamp)
+        result = datetime.datetime.fromtimestamp(timestamp, tz=tzutc()).replace(tzinfo=None)
         if self.tzinfo:
             result = result.replace(tzinfo=tzutc()).astimezone(self.tzinfo)
 
@@ -214,10 +245,10 @@ class croniter(object):
         Note: We cannot use `timedelta.total_seconds()` because this is not
         supported by Python 2.6.
         """
-        return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) \
-            / 10**6
+        return timedelta_to_seconds(td)
 
-    def _get_next(self, ret_type=None, is_prev=None):
+    def _get_next(self, ret_type=None, start_time=None, is_prev=None):
+        self.set_current(start_time, force=True)
         if is_prev is None:
             is_prev = self._is_prev
         self._is_prev = is_prev
@@ -231,23 +262,34 @@ class croniter(object):
                             "is acceptable.")
 
         # exception to support day of month and day of week as defined in cron
+        dom_dow_exception_processed = False
         if (expanded[2][0] != '*' and expanded[4][0] != '*') and self._day_or:
-            bak = expanded[4]
-            expanded[4] = ['*']
-            t1 = self._calc(self.cur, expanded, nth_weekday_of_month, is_prev)
-            expanded[4] = bak
-            expanded[2] = ['*']
-
-            t2 = self._calc(self.cur, expanded, nth_weekday_of_month, is_prev)
-            if not is_prev:
-                result = t1 if t1 < t2 else t2
+            # If requested, handle a bug in vixie cron/ISC cron where day_of_month and day_of_week form
+            # an intersection (AND) instead of a union (OR) if either field is an asterisk or starts with an asterisk
+            # (https://crontab.guru/cron-bug.html)
+            if self._implement_cron_bug and (re_star.match(self.expressions[2]) or re_star.match(self.expressions[4])):
+                # To produce a schedule identical to the cron bug, we'll bypass the code that
+                # makes a union of DOM and DOW, and instead skip to the code that does an intersect instead
+                pass
             else:
-                result = t1 if t1 > t2 else t2
-        else:
+                bak = expanded[4]
+                expanded[4] = ['*']
+                t1 = self._calc(self.cur, expanded, nth_weekday_of_month, is_prev)
+                expanded[4] = bak
+                expanded[2] = ['*']
+
+                t2 = self._calc(self.cur, expanded, nth_weekday_of_month, is_prev)
+                if not is_prev:
+                    result = t1 if t1 < t2 else t2
+                else:
+                    result = t1 if t1 > t2 else t2
+                dom_dow_exception_processed = True
+
+        if not dom_dow_exception_processed:
             result = self._calc(self.cur, expanded,
                                 nth_weekday_of_month, is_prev)
 
-        # DST Handling for cron job spanning accross days
+        # DST Handling for cron job spanning across days
         dtstarttime = self._timestamp_to_datetime(self.dst_start_time)
         dtstarttime_utcoffset = (
             dtstarttime.utcoffset() or datetime.timedelta(0))
@@ -270,8 +312,12 @@ class croniter(object):
                 or (lag < 0 and
                     ((3600 * abs(lag_hours) + abs(lag)) >= hours_before_midnight * 3600))
             ):
-                dtresult = dtresult - datetime.timedelta(seconds=lag)
-                result = self._datetime_to_timestamp(dtresult)
+                dtresult_adjusted = dtresult - datetime.timedelta(seconds=lag)
+                result_adjusted = self._datetime_to_timestamp(dtresult_adjusted)
+                # Do the actual adjust only if the result time actually exists
+                if self._timestamp_to_datetime(result_adjusted).tzinfo == dtresult_adjusted.tzinfo:
+                    dtresult = dtresult_adjusted
+                    result = result_adjusted
                 self.dst_start_time = result
         self.cur = result
         if issubclass(ret_type, datetime.datetime):
@@ -287,7 +333,7 @@ class croniter(object):
         implicit call to __iter__, whenever non-default
         'ret_type' has to be specified.
         '''
-        # In a Python 3.7+ world:  contextlib.supress and contextlib.nullcontext could be used instead
+        # In a Python 3.7+ world:  contextlib.suppress and contextlib.nullcontext could be used instead
         try:
             while True:
                 self._is_prev = False
@@ -622,27 +668,26 @@ class croniter(object):
 
             while len(e_list) > 0:
                 e = e_list.pop()
+                nth = None
 
                 if i == 4:
-                    # Handle special case in the day-of-week expression
-                    m = special_weekday_re.match(str(e))
-                    if m:
-                        orig_e = e
-                        e, nth, last = m.groups()
-                        if nth:
+                    # Handle special case in the dow expression: 2#3, l3
+                    special_dow_rem = special_dow_re.match(str(e))
+                    if special_dow_rem:
+                        g = special_dow_rem.groupdict()
+                        he, last = g.get('he', ''), g.get('last', '')
+                        if he:
+                            e = he
                             try:
-                                nth = int(nth)
+                                nth = int(last)
                                 assert (nth >= 1 and nth <= 5)
-                            except (ValueError, AssertionError):
+                            except (KeyError, ValueError, AssertionError):
                                 raise CroniterBadCronError(
                                     "[{0}] is not acceptable.  Invalid day_of_week "
-                                    "value: '{1}'".format(expr_format, orig_e))
+                                    "value: '{1}'".format(expr_format, nth))
                         elif last:
-                            nth = "l"
                             e = last
-                        del last, orig_e
-                    else:
-                        nth = None
+                            nth = g['pre']  # 'l'
 
                 # Before matching step_search_re, normalize "*" to "{min}-{max}".
                 # Example: in the minute field, "*/5" normalizes to "0-59/5"
@@ -712,7 +757,13 @@ class croniter(object):
                     except ValueError:
                         pass
 
-                    if t in cls.LOWMAP[i]:
+                    if t in cls.LOWMAP[i] and not (
+                        # do not support 0 as a month either for classical 5 fields cron
+                        # or 6fields second repeat form
+                        # but still let conversion happen if day field is shifted
+                        (i in [2, 3] and len(expressions) == 5) or
+                        (i in [3, 4] and len(expressions) == 6)
+                    ):
                         t = cls.LOWMAP[i][t]
 
                     if (
@@ -750,6 +801,7 @@ class croniter(object):
                     "day-of-week field does not support mixing literal values and nth day of week syntax.  "
                     "Cron: '{}'    dow={} vs nth={}".format(expr_format, dow_expanded_set, nth_weekday_of_month))
 
+        EXPRESSIONS[(expr_format, hash_id)] = expressions
         return expanded, nth_weekday_of_month
 
     @classmethod
@@ -757,13 +809,14 @@ class croniter(object):
         """Shallow non Croniter ValueError inside a nice CroniterBadCronError"""
         try:
             return cls._expand(expr_format, hash_id=hash_id)
-        except ValueError as exc:
+        except (ValueError,) as exc:
             error_type, error_instance, traceback = sys.exc_info()
             if isinstance(exc, CroniterError):
                 raise
             if int(sys.version[0]) >= 3:
+                trace = _traceback.format_exc()
                 globs, locs = _get_caller_globals_and_locals()
-                exec("raise CroniterBadCronError from  exc", globs, locs)
+                raise CroniterBadCronError(trace)
             else:
                 raise CroniterBadCronError("{0}".format(exc))
 
@@ -782,9 +835,10 @@ class croniter(object):
         td, ms1 = cron.get_current(datetime.datetime), relativedelta(microseconds=1)
         if not td.microsecond:
             td = td + ms1
-        cron.set_current(td)
+        cron.set_current(td, force=True)
         tdp, tdt = cron.get_current(), cron.get_prev()
-        return (max(tdp, tdt) - min(tdp, tdt)).total_seconds() < 60
+        precision_in_seconds = 1 if len(cron.expanded) == 6 else 60
+        return (max(tdp, tdt) - min(tdp, tdt)).total_seconds() < precision_in_seconds
 
 
 def croniter_range(start, stop, expr_format, ret_type=None, day_or=True, exclude_ends=False,
@@ -801,7 +855,7 @@ def croniter_range(start, stop, expr_format, ret_type=None, day_or=True, exclude
     auto_rt = datetime.datetime
     # type is used in first if branch for perfs reasons
     if (
-        type(start) != type(stop) and not (
+        type(start) is not type(stop) and not (
             isinstance(start, type(stop)) or
             isinstance(stop, type(start)))
     ):
@@ -809,7 +863,7 @@ def croniter_range(start, stop, expr_format, ret_type=None, day_or=True, exclude
             "The start and stop must be same type.  {0} != {1}".
             format(type(start), type(stop)))
     if isinstance(start, (float, int)):
-        start, stop = (datetime.datetime.utcfromtimestamp(t) for t in (start, stop))
+        start, stop = (datetime.datetime.fromtimestamp(t, tzutc()).replace(tzinfo=None) for t in (start, stop))
         auto_rt = float
     if ret_type is None:
         ret_type = auto_rt
@@ -853,15 +907,20 @@ class HashExpander:
 
     def do(self, idx, hash_type="h", hash_id=None, range_end=None, range_begin=None):
         """Return a hashed/random integer given range/hash information"""
+        hours_or_minutes = idx in {0, 1}
         if range_end is None:
             range_end = self.cron.RANGES[idx][1]
+            if hours_or_minutes:
+                range_end += 1
         if range_begin is None:
             range_begin = self.cron.RANGES[idx][0]
         if hash_type == 'r':
             crc = random.randint(0, 0xFFFFFFFF)
         else:
             crc = binascii.crc32(hash_id) & 0xFFFFFFFF
-        return ((crc >> idx) % (range_end - range_begin + 1)) + range_begin
+        if not hours_or_minutes:
+            return ((crc >> idx) % (range_end - range_begin + 1)) + range_begin
+        return ((crc >> idx) % (range_end - range_begin)) + range_begin
 
     def match(self, efl, idx, expr, hash_id=None, **kw):
         return hash_expression_re.match(expr)
@@ -876,6 +935,10 @@ class HashExpander:
 
         if m['hash_type'] == 'h' and hash_id is None:
             raise CroniterBadCronError('Hashed definitions must include hash_id')
+
+        if m['range_begin'] and m['range_end']:
+            if int(m['range_begin']) >= int(m['range_end']):
+                raise CroniterBadCronError('Range end must be greater than range begin')
 
         if m['range_begin'] and m['range_end'] and m['divisor']:
             # Example: H(30-59)/10 -> 34-59/10 (i.e. 34,44,54)
